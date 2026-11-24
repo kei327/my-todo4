@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#172554"><link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png"><title>今日のやることリスト</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#172033;background:#f4f6fb}*{box-sizing:border-box}
+body{margin:0;padding:20px 14px 44px}main{max-width:620px;margin:auto}
+header{background:#172554;color:white;border-radius:22px;padding:22px;margin-bottom:16px}
+h1{font-size:1.4rem;margin:0 0 7px}#today{opacity:.9;font-size:.93rem}
+.card{background:white;border-radius:18px;padding:17px;margin:13px 0;box-shadow:0 5px 20px #1725540c}
+h2{font-size:1.03rem;margin:0 0 13px}.shortcuts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+button{border:0;border-radius:12px;padding:12px 15px;background:#3156b8;color:white;font:inherit;font-weight:650}
+button.secondary{background:#e9eefb;color:#24428f}.shortcuts button{padding:10px 5px;font-size:.9rem}
+.shortcuts button.active{background:#172554;color:white}
+.dateLine,.addrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input[type=date],input[type=text]{border:1px solid #d7ddeb;border-radius:12px;padding:12px;font:inherit;background:white;color:#172033}
+input[type=date]{flex:1;min-width:155px}input[type=text]{min-width:0;flex:1}
+ul{list-style:none;padding:0;margin:0}li{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid #edf0f5}
+li:last-child{border:0}li input{width:20px;height:20px;accent-color:#3156b8;flex:none}
+.task{flex:1;overflow-wrap:anywhere}.done .task{text-decoration:line-through;color:#8992a5}
+.delete{background:transparent;color:#8a93a5;padding:6px 8px;font-size:.85rem}
+.meta{display:flex;justify-content:space-between;color:#69758d;font-size:.9rem;margin-top:12px}
+.empty{color:#8992a5;text-align:center;padding:18px 0}.small{font-size:.84rem;color:#78839a}
+#archive{display:none}.archive-date{font-weight:700;margin:12px 0 7px}
+footer{color:#8791a5;font-size:.8rem;text-align:center;margin-top:20px;line-height:1.6}
+</style></head><body><main>
+<header><h1>今日のやることリスト</h1><div id="today"></div></header>
+<section class="card"><h2>予定する日を選ぶ</h2>
+<div class="shortcuts"><button data-offset="0">今日</button><button data-offset="1" class="secondary">明日</button><button data-offset="2" class="secondary">明後日</button></div>
+<div class="dateLine"><label for="datePicker" class="small">日付を自由に選択：</label><input id="datePicker" type="date"></div>
+<p class="small">明日・明後日の予定も、前もって好きなタイミングで登録できるよ。</p></section>
+<section class="card"><h2 id="taskHeading">今日やること</h2>
+<form class="addrow" id="addForm"><input id="newTask" type="text" placeholder="例：数学の問題を3問解く" maxlength="120"><button>追加</button></form></section>
+<section class="card"><h2>タスクリスト</h2><ul id="tasks"></ul>
+<div id="empty" class="empty">タスクはまだありません。上から追加しよう！</div>
+<div class="meta"><span id="progress">0 / 0 完了</span><span id="percent">0%</span></div></section>
+<section class="card"><button class="secondary" id="archiveToggle">過去の記録を見る</button><div id="archive"><div style="height:12px"></div><div id="archiveList"></div></div></section>
+<footer>予定は日付ごとに保存されます。日付が変わっても登録した予定は消えません。<br>データはこの端末のブラウザに保存されます。</footer>
+</main><script>
+const KEY="dailyTodo_v3";
+const key=(d=new Date())=>{let y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return `${y}-${m}-${day}`};
+const offset=n=>{let d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+n);return key(d)};
+const pretty=k=>{let [y,m,d]=k.split("-").map(Number),dt=new Date(y,m-1,d);return `${y}年${m}月${d}日（${"日月火水木金土"[dt.getDay()]}）`};
+let data;try{const saved=localStorage.getItem(KEY)||localStorage.getItem("dailyTodo_v2");data=saved?JSON.parse(saved):{days:{}}}catch{data={days:{}}}
+let selected=key(), observed=key();
+const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
+const ensure=k=>{if(!data.days[k])data.days[k]=[]};
+const label=k=>k===key()?"今日":k===offset(1)?"明日":k===offset(2)?"明後日":pretty(k);
+function choose(k){selected=k;ensure(k);save();render()}
+function render(){
+ ensure(selected);document.getElementById("today").textContent="選択中："+pretty(selected);
+ document.getElementById("taskHeading").textContent=label(selected)+"やること";
+ document.getElementById("datePicker").value=selected;
+ document.querySelectorAll("[data-offset]").forEach(b=>{let on=offset(+b.dataset.offset)===selected;b.classList.toggle("active",on);b.classList.toggle("secondary",!on)});
+ let ul=document.getElementById("tasks");ul.replaceChildren();let items=data.days[selected];
+ document.getElementById("empty").style.display=items.length?"none":"block";
+ items.forEach((it,i)=>{let li=document.createElement("li");if(it.done)li.classList.add("done");
+ let c=document.createElement("input");c.type="checkbox";c.checked=!!it.done;c.addEventListener("change",()=>{it.done=c.checked;save();render()});
+ let t=document.createElement("span");t.className="task";t.textContent=it.text;
+ let del=document.createElement("button");del.className="delete";del.type="button";del.textContent="削除";del.addEventListener("click",()=>{items.splice(i,1);save();render()});
+ li.append(c,t,del);ul.append(li)});
+ let done=items.filter(x=>x.done).length,p=items.length?Math.round(done/items.length*100):0;
+ document.getElementById("progress").textContent=`${done} / ${items.length} 完了`;document.getElementById("percent").textContent=p+"%";
+}
+document.querySelectorAll("[data-offset]").forEach(b=>b.addEventListener("click",()=>choose(offset(+b.dataset.offset))));
+document.getElementById("datePicker").addEventListener("change",e=>{if(e.target.value)choose(e.target.value)});
+document.getElementById("addForm").addEventListener("submit",e=>{e.preventDefault();let inp=document.getElementById("newTask"),v=inp.value.trim();if(!v)return;ensure(selected);data.days[selected].push({text:v,done:false});save();inp.value="";render();inp.focus()});
+document.getElementById("archiveToggle").addEventListener("click",()=>{let box=document.getElementById("archive"),open=box.style.display!=="block";box.style.display=open?"block":"none";document.getElementById("archiveToggle").textContent=open?"記録を閉じる":"過去の記録を見る";if(open)archive()});
+function archive(){let root=document.getElementById("archiveList");root.replaceChildren();let ks=Object.keys(data.days).filter(k=>k<key()).sort().reverse();if(!ks.length){root.textContent="まだ過去の記録はありません。";return}
+ ks.forEach(k=>{let sec=document.createElement("section"),h=document.createElement("div");h.className="archive-date";h.textContent=pretty(k);sec.append(h);
+ if(!data.days[k].length){let p=document.createElement("p");p.className="small";p.textContent="タスクなし";sec.append(p)}else{let ul=document.createElement("ul");data.days[k].forEach(it=>{let li=document.createElement("li"),mark=document.createElement("span"),t=document.createElement("span"),s=document.createElement("span");mark.textContent=it.done?"☑":"□";t.className="task";t.textContent=it.text;s.className="small";s.textContent=it.done?"完了":"未完了";li.append(mark,t,s);ul.append(li)});sec.append(ul)}root.append(sec)})
+}
+function rollover(){let now=key();if(now!==observed){observed=now;render()}}
+ensure(selected);save();render();setInterval(rollover,15000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)rollover()});
+if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.error));
+</script></body></html>
